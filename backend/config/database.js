@@ -7,8 +7,10 @@ const dbConfig = {
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'taskflow_pro',
-  port: process.env.DB_PORT || 3306,
-  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  port: parseInt(process.env.DB_PORT) || 3306,
+  ssl: process.env.NODE_ENV === 'production' ? {
+    rejectUnauthorized: true
+  } : false,
   connectionLimit: 10,
   acquireTimeout: 60000,
   timeout: 60000
@@ -22,16 +24,17 @@ const testConnection = async () => {
   try {
     const connection = await pool.getConnection();
     console.log('✅ Database connected successfully');
+    console.log(`📍 Connected to: ${process.env.DB_HOST || 'localhost'}`);
     connection.release();
     return true;
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
-    console.error('💡 Make sure MySQL is running and credentials in .env are correct');
+    console.error('💡 Check your environment variables');
     return false;
   }
 };
 
-// Execute query function
+// Execute query function (unchanged)
 const executeQuery = async (query, params = []) => {
   try {
     const [results] = await pool.execute(query, params);
@@ -42,12 +45,12 @@ const executeQuery = async (query, params = []) => {
   }
 };
 
-// Get connection for transactions
+// Get connection for transactions (unchanged)
 const getConnection = async () => {
   return await pool.getConnection();
 };
 
-// Initialize database tables
+// Initialize database tables (unchanged)
 const initializeDatabase = async () => {
   try {
     console.log('🔄 Creating database tables...');
@@ -132,8 +135,22 @@ const initializeDatabase = async () => {
       ) ENGINE=InnoDB
     `);
 
+    // Create task_comments table
+    await executeQuery(`
+      CREATE TABLE IF NOT EXISTS task_comments (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        task_id INT NOT NULL,
+        user_id INT NOT NULL,
+        comment TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+
     console.log('✅ Database tables created successfully');
-    console.log('📊 Tables: users, projects, project_members, tasks');
+    console.log('📊 Tables: users, projects, project_members, tasks, task_comments');
   } catch (error) {
     console.error('❌ Database initialization failed:', error.message);
     throw error;
